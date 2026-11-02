@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #f7f4ee;
+  --ink: #1a0b2e;
+  --mint: #bfe8d4;
+  --lime: #ddfd57;
+  --purple: #5b35f5;
+  --coral: #ff714c;
+}
+
+@theme inline {
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-bricolage);
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+  --color-mint: var(--mint);
+  --color-lime: var(--lime);
+  --color-purple: var(--purple);
+  --color-coral: var(--coral);
+  --color-background: var(--cream);
+  --color-foreground: var(--ink);
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+::selection {
+  background: var(--purple);
+  color: #fff;
+}
+
+body::-webkit-scrollbar {
+  width: 10px;
+}
+body::-webkit-scrollbar-track {
+  background: var(--cream);
+}
+body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
