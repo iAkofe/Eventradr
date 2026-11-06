@@ -140,8 +140,9 @@ export default function SignInPage() {
 
     setLoading(true);
     try {
-      await verifyOtp({ email, code });
-      router.push("/dashboard");
+      const result = await verifyOtp({ email, code });
+      // First-run onboarding is gated on the documented isNewUser flag.
+      router.push(result.data.isNewUser ? "/onboarding" : "/dashboard");
     } catch (err) {
       setError(describeError(err));
       setCode("");

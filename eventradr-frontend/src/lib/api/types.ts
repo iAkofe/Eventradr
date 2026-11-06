@@ -1,8 +1,15 @@
-// DTOs derived from the Eventradr staging OpenAPI document:
+// DTOs for the Eventradr staging API.
+//
+// Auth / profile / organizer / admin shapes come from the OpenAPI document:
 // https://staging-api.eventradr.app/api/docs/openapi.json (Eventradr API 0.1.0)
 //
+// Event shapes come from the Postman collection, which is ahead of the spec —
+// the `/organizer/events` routes are live on staging but absent from the
+// OpenAPI document:
+// https://documenter.getpostman.com/view/7735144/2sBYHRWhfo
+//
 // These mirror the documented request/response schemas. Do not add fields that
-// are not in the spec.
+// are not in a documented example.
 
 /** Success envelope shared by every documented endpoint. */
 export interface ApiSuccess<T> {
@@ -118,4 +125,134 @@ export interface CreateOrganizerBody {
 export interface UpdateOrganizerBody {
   name?: string;
   about?: string | null;
+}
+
+// --- Events (organizer drafts) ---
+//
+// Contract source: Postman "Event" folder. Events are created as drafts and
+// edited incrementally; `missing` lists the fields still blocking publish.
+// Every write is guarded by optimistic concurrency (`version` / `expectedVersion`).
+
+/** Only drafts exist today — no publish route is documented. */
+export type EventStatus = "draft";
+
+export type EventFormat = "in_person" | "online";
+
+export interface EventCoordinates {
+  longitude: number;
+  latitude: number;
+}
+
+/** Area -> city -> state hierarchy returned on an event's `area` field. */
+export interface EventArea {
+  id: string;
+  slug: string;
+  name: string;
+  city: {
+    id: string;
+    slug: string;
+    name: string;
+  };
+  state: {
+    id: string;
+    slug: string;
+    name: string;
+  };
+}
+
+/**
+ * Fields an event still needs before it can go live. `cover` and `admission`
+ * are separate resources, not properties of the event itself.
+ */
+export type EventMissingField =
+  | "title"
+  | "category"
+  | "description"
+  | "cover"
+  | "startsAt"
+  | "endsAt"
+  | "format"
+  | "admission"
+  | "coordinates";
+
+export interface Event {
+  id: string;
+  status: EventStatus;
+  /** Optimistic concurrency token; echo it as `expectedVersion` on update. */
+  version: number;
+  title: string | null;
+  category: Category | null;
+  description: string | null;
+  /** ISO date-time */
+  startsAt: string | null;
+  /** ISO date-time */
+  endsAt: string | null;
+  /** IANA zone, e.g. "Africa/Lagos". Always present on a draft. */
+  timeZone: string;
+  format: EventFormat | null;
+  venueName: string | null;
+  streetAddress: string | null;
+  area: EventArea | null;
+  coordinates: EventCoordinates | null;
+  arrivalInstructions: string | null;
+  /** Set for `online` events; null otherwise. */
+  joiningUrl: string | null;
+  missing: EventMissingField[];
+  /** ISO date-time */
+  createdAt: string;
+  /** ISO date-time */
+  updatedAt: string;
+}
+
+// --- POST /api/v1/organizer/events ---
+// Every field is optional: an empty body creates a blank draft. Offline events
+// send venue/area/coordinates; online events send `joiningUrl` instead.
+export interface CreateEventBody {
+  title?: string;
+  categoryId?: string;
+  description?: string;
+  /** ISO date-time */
+  startsAt?: string;
+  /** ISO date-time */
+  endsAt?: string;
+  /** IANA zone, e.g. "Africa/Lagos". Defaults server-side when omitted. */
+  timeZone?: string;
+  format?: EventFormat;
+  venueName?: string;
+  streetAddress?: string;
+  areaId?: string;
+  /** `null` clears a previously set pin. */
+  coordinates?: EventCoordinates | null;
+  arrivalInstructions?: string;
+  joiningUrl?: string;
+}
+
+// --- PATCH /api/v1/organizer/events/{id} ---
+// Only the fields sent change. Pass the `version` you last read as
+// `expectedVersion`; a stale value is rejected. `coordinates: null` unsets it.
+export interface UpdateEventBody extends CreateEventBody {
+  expectedVersion: number;
+}
+
+// --- GET /api/v1/organizer/events ---
+export interface ListEventsParams {
+  /** Which bucket to list. Only "drafts" is documented. */
+  tab?: string;
+  /** Free-text search within the tab. */
+  q?: string;
+  /** 1-based page number. Defaults to 1. */
+  page?: number;
+}
+
+export interface Pagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
+export interface EventList {
+  items: Event[];
+  pagination: Pagination;
 }

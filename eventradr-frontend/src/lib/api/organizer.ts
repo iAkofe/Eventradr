@@ -18,6 +18,34 @@ export function createOrganizerProfile(body: CreateOrganizerBody) {
   });
 }
 
+// --- Documented rules for CreateOrganizerBody.name ---------------------------
+// Kept next to the DTO they constrain so setup and profile editing agree.
+
+/** 1–80 characters after trimming and collapsing spaces. */
+export const ORGANIZER_NAME_MAX = 80;
+
+/** Latin letters (accents allowed), digits, spaces and & ' - . , only. */
+const ORGANIZER_NAME_ALLOWED = /^[\p{Script=Latin}\p{Nd} &'\-.,]+$/u;
+
+/** Trim and collapse runs of spaces, matching the API's own normalisation. */
+export function normalizeOrganizerName(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+/** A problem to show the user, or null when the name is acceptable. */
+export function describeOrganizerNameProblem(normalized: string): string | null {
+  if (normalized.length === 0) {
+    return "Enter an organizer name.";
+  }
+  if (normalized.length > ORGANIZER_NAME_MAX) {
+    return `Keep it to ${ORGANIZER_NAME_MAX} characters or fewer.`;
+  }
+  if (!ORGANIZER_NAME_ALLOWED.test(normalized)) {
+    return "Use letters, numbers, spaces and & ' - . , only.";
+  }
+  return null;
+}
+
 /** GET /api/v1/organizer/profile — the signed-in user's organizer profile.
  *  Answers 403 ORGANIZER_PROFILE_REQUIRED when none exists yet.
  */

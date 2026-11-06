@@ -39,3 +39,30 @@ export function readDetailNumber(
   }
   return null;
 }
+
+/** Turn a thrown API error into a message safe to show the user. */
+export function describeApiError(error: unknown): string {
+  const payload = getApiError(error);
+  if (!payload) {
+    return "Something went wrong. Check your connection and try again.";
+  }
+
+  switch (payload.code) {
+    case "VALIDATION_ERROR":
+      return payload.message || "Please check what you entered.";
+    case "UNAUTHENTICATED":
+      return "Your session expired. Please sign in again.";
+    case "ORGANIZER_NAME_TAKEN":
+      return "That organizer name is already in use. Try another one.";
+    case "ORGANIZER_PROFILE_EXISTS":
+      return "This account already has an organizer profile.";
+    case "ORGANIZER_PROFILE_REQUIRED":
+      return "Set up your organizer profile to continue.";
+    case "IMAGE_INVALID":
+      return "That image couldn't be used. Choose a PNG, JPG or WebP.";
+    case "PAYLOAD_TOO_LARGE":
+      return "That file is over the 5 MB limit. Choose a smaller one.";
+    default:
+      return payload.message || "Something went wrong. Please try again.";
+  }
+}
