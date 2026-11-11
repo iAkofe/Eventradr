@@ -277,6 +277,12 @@ against a Node `fetch` to the same host — they use different trust stores.
 - Live staging probes (2026-11-05): `GET /api/v1/organizer/events` → **401 UNAUTHENTICATED** (route is
   deployed, just undocumented in the spec); `GET /api/v1/locations` → **404 route not found**
   (documented in Postman but not deployed).
+- Live staging probes (2026-11-06): `GET /api/v1/admin/me` → **401 UNAUTHENTICATED**
+  (`{"error":{"code":"UNAUTHENTICATED","message":"sign in to continue"}}`), so the admin route **is
+  deployed** — it is an auth wall, not a missing route, which is the same signal `/organizer/profile`
+  gives. `GET /api/v1/admin` also returns 401 (rather than 404), suggesting an auth guard on the whole
+  `/admin` prefix. Control: `/api/v1/locations` and a deliberately bogus path both return 404. Only the
+  401 is confirmed — the 403 "not an admin" branch and the success payload need a real admin account.
 
 ---
 
@@ -379,6 +385,7 @@ hardcode the Postman example IDs.
 | GET | `/admin/me` | `{ user, grantedAt }` |
 
 `403 FORBIDDEN` means the account is not an admin. This looks like a **separate admin surface**.
+Confirmed **deployed** on staging (2026-11-06): unauthenticated it returns 401 `UNAUTHENTICATED`, not 404.
 
 ### Health — public
 | Method | Path | Returns |
