@@ -15,6 +15,7 @@ You are the senior frontend engineer executing this task in the user's codebase.
 5. Do not log, print, persist in browser-accessible storage, or commit `access_token`, `refresh_token`, OTPs, passwords, session cookies, or test credentials. Keep `.env.local` ignored by Git.
 6. Where a source cannot be opened, document the limitation and proceed with verified setup work. Mark dependent tasks **BLOCKED**, with the exact missing information; do not pretend they passed.
 7. This is a **browser-cookie authentication** integration. Do not invent a JWT-in-localStorage solution, add an unnecessary auth SDK, or substitute custom Next.js API Route Handlers for the requested rewrite proxy.
+8. **Re-verify the API contract every time you touch it.** Before writing or changing any API call, request/response type, or error handling, reopen the *current* sources in §1 — the Swagger/OpenAPI document and the Postman collection — and confirm the exact paths, payloads, statuses and error codes. These documents change without notice, so treat any cached summary (this file, `handover.md`, `AGENTS.md`, or your own memory) as **potentially stale**. When the two sources disagree, flag the discrepancy and settle it with a live staging probe; do not silently pick one.
 
 ## 1. Documentation: source of truth and known facts
 

@@ -10,15 +10,15 @@ was done under **Done**, and what remains under **To do**.
 | Area | State |
 |---|---|
 | Landing page (`/`) | Built and verified against mockups. Custom design system, Lenis smooth scroll, scroll- and mouse-based micro-interactions. |
-| Auth (OTP sign-in) | Implemented against the verified OpenAPI schemas. Not yet confirmed end-to-end with a real staging account. |
+| Auth (OTP sign-in) | **Rebuilt to the attendee sign-in design** — shared split-panel layout, 6-box OTP input, resend cooldown/toast handling, and design-matched invalid/expired/network states. The dev proxy is now verified working (`/api/v1/categories` → 200 through `localhost:3000`); a real-account OTP round trip is still outstanding. |
 | API layer | Auth, categories, organizer, profile, admin **and events** services exist and type-check. |
-| Events (organizer draft CRUD) | **Service layer done** — `createEvent`, `listEvents`, `updateEvent`, `deleteEvent` in `src/lib/api/events.ts`. No UI yet. |
-| App shell + routing | **Built** — shared `AppShell` (brand, primary nav, sign-out, footer) wired through an `(attendee)` route group. Dashboard and profile render inside it; `/onboarding` is a standalone shell-free flow. |
+| Events (organizer draft CRUD) | **Done** — service layer (`createEvent`, `listEvents`, `updateEvent`, `deleteEvent`, `findEvent` in `src/lib/api/events.ts`) **plus** the full `(organizer-workspace)` UI: `/organizer/events` (hub), `/organizer/events/new` (create), `/organizer/events/[id]` (edit), `/organizer/events/[id]/saved` ("Draft saved"). Unbacked sections (cover, admission, ticket tiers, payout, submit-for-review) render disabled. |
+| App shell + routing | **Built** — shared `AppShell` (brand, primary nav, sign-out, footer) wired through an `(attendee)` route group. Dashboard and profile render inside it; `/onboarding` is now a standalone split-panel flow and `/onboarding/all-set` is the post-onboarding handoff screen. |
 | Attendee dashboard (`/dashboard`) | **Built and aligned to the design system** — welcome heading, entry cards to Profile and Discover, account summary. Previously generic zinc/black styling. |
 | Profile settings (`/profile`) | **Built** — avatar upload/remove, display name, interests, email; all four profile endpoints wired. Design-system styling (Figma restyle pass pending). |
-| Organizer surfaces | **Scaffolded** — `(organizer)` group reusing `AppShell`; `/organizer` (home, gated on a profile), `/organizer/setup` (create the profile), `/organizer/profile` (edit name/about + organizer avatar). Organizer name rules enforced client-side. Design-system styling (Figma restyle pass pending). |
+| Organizer surfaces | **Sign-in + host-setup flow rebuilt to the supplied organizer design** — a shell-free `(organizer-flow)` route group with its own split-panel layout and the new `signal-mark` brand. `/organizer/sign-in` (OTP), `/organizer/setup` (create the profile, incl. save-failed / unconfirmed / checking states), `/organizer/setup/ready` (handoff). The `(organizer)` group still holds `/organizer` (home, gated on a profile) and `/organizer/profile` (edit name/about + organizer avatar) inside `AppShell`. Organizer name rules enforced client-side. Figma restyle pass pending on the `AppShell`-based screens. |
 | Admin surfaces | **Not started.** Designs located and exported as PNGs, but not yet readable by this model (see the Figma design map). |
-| Onboarding flow | **Built** — `/onboarding`, two steps (display name → interests). Styled from the project design system, not from Figma (see §9, decision 4). Not yet confirmed end-to-end with a real account. |
+| Onboarding flow | **Rebuilt to the attendee onboarding design** — `/onboarding` is now interests-only, uses pill chips plus save/skip states, and routes to `/onboarding/all-set` for new users. Not yet confirmed end-to-end with a real account. |
 | Design source (Figma) | Figma AI Bridge **connected and working**. PNG export done (7 frames). Structured design data **still rate-limited**. The current model **cannot read images** — see the Figma design map. |
 
 ---
@@ -34,6 +34,15 @@ was done under **Done**, and what remains under **To do**.
 | Dev proxy guide | `staging-dev-proxy.md` | Why the `/api/*` rewrite is required and how cookies behave on localhost. |
 | Agent rules | `eventradr-frontend/AGENTS.md` | This Next.js version has breaking changes — read `node_modules/next/dist/docs/` before writing Next-specific code. |
 | Design (Figma) | `figma.com/design/R5QssY0Cm5dYIQgAr3JIVA` — file **"Eventradr (Copy)"** | Read via the Figma AI Bridge MCP. See the Figma design map below. |
+| Design (local, attendee) | `eventradr-frontend/Attendee Sign In/` | User-supplied PNG frames. The implementation source for the attendee sign-in/onboarding rebuild (now complete). |
+| Design (local, organizer) | `eventradr-frontend/Organizer SignIn/` | User-supplied PNG frames (15 desktop+mobile). The implementation source for the organizer sign-in/host-setup flow (§3). Read via the `/tmp` OCR + colour-sampler tooling. |
+| Design (local, organizer events) | `eventradr-frontend/Organizer Events Flow/` | User-supplied PNG frames (69 desktop+mobile). The implementation source for the `(organizer-workspace)` events flow (§3). Read via the `/tmp` OCR + colour-sampler tooling. |
+
+> **Standing rule — always re-verify the contract.** Before writing or changing any API call, request/
+> response type, or error path, re-read the **current** OpenAPI document and Postman collection (links
+> above) and confirm the exact paths, payloads, statuses and error codes. Both documents change without
+> notice, so treat **everything in this file as potentially stale**. When the two sources disagree, flag
+> the discrepancy and settle it with a live staging probe rather than silently choosing one.
 
 > **Correction to a working assumption:** `eventradr-setup.md` and `staging-dev-proxy.md` are
 > **setup and proxy documents**. They do **not** describe user types, inner-page structure, or
@@ -184,6 +193,17 @@ the cause. Added:
 This matches the project's existing TLS convention. Diagnose this class of failure by comparing `curl`
 against a Node `fetch` to the same host — they use different trust stores.
 
+The **same trap hits `next dev`**: start the dev server without the variable and the rewrite proxy fails every
+upstream call, logging `Failed to proxy https://staging-api.eventradr.app/api/v1/... Error: unable to get local
+issuer certificate` in `.next/dev/logs/next-development.log`. The browser receives a plain-text
+`500 Internal Server Error` instead of JSON, so `getApiError` cannot parse it and the UI shows the generic
+"Something went wrong. Check your connection and try again." — a misleading message for what is really a
+server-side TLS misconfiguration. Always start with:
+
+```sh
+NODE_EXTRA_CA_CERTS=/etc/ssl/cert.pem npm run dev
+```
+
 ---
 
 ## 3. Done
@@ -216,14 +236,22 @@ against a Node `fetch` to the same host — they use different trust stores.
 - **`getCurrentUser` was moved** from `auth.ts` to `profile.ts`, because `/me` is a profile resource, not
   an auth one. The dashboard import was updated to match. `auth.ts` remains the single owner of session
   lifecycle.
-- `src/app/(auth)/sign-in/page.tsx` — two-step OTP flow with cooldown, resend, and error mapping.
-  On success it routes on the documented `isNewUser` flag: `/onboarding` when true, `/dashboard` when false.
-- `src/app/onboarding/page.tsx` — the first-run flow. Step 1 collects the display name
-  (`PATCH /me { name }`, 1–80 chars, trims before sending); step 2 collects interests from
-  `GET /categories` (`PUT /me/interests { categoryIds }`), with "Skip for now" that leaves the set empty
-  (the documented `[]` = skip). Sessions reuse the documented 401 → refresh once → retry path. Category
-  tiles are selectable with `aria-pressed`; progress is a labelled `progressbar`. Moved out of the old
-  `(protected)` group so this focused flow keeps its own chrome (progress bar, no nav).
+- `src/app/(auth)/layout.tsx` — shared attendee auth shell: top-left brand, left-side event image
+  (`public/event-image.png` copied from the user-supplied attendee flow folder), and the white bordered
+  card used by `/sign-in`.
+- `src/app/(auth)/sign-in/page.tsx` — rebuilt to the attendee design: email-first entry, 6 separate OTP
+  boxes with paste support, resend cooldown reveal, bottom "Code sent" toast, and design-matched invalid,
+  expired and network-copy states. On success it still routes on the documented `isNewUser` flag:
+  `/onboarding` when true, `/dashboard` when false.
+- `src/app/onboarding/layout.tsx` — matches the attendee auth shell for onboarding and the final success
+  screen while keeping `/onboarding` outside the signed-in `AppShell`.
+- `src/app/onboarding/page.tsx` — rebuilt to the attendee onboarding design as an **interests-only**
+  step. Loads the current session plus `GET /categories`, renders pill chips with `aria-pressed`, shows
+  either "Choose as many as you like." or the live `N interests selected` helper, and saves via
+  `PUT /me/interests`. "Skip for now" now explicitly writes the documented empty set (`categoryIds: []`)
+  before continuing.
+- `src/app/onboarding/all-set/page.tsx` — the new post-onboarding handoff screen. New users now follow
+  `verify -> /onboarding -> /onboarding/all-set -> /`.
 
 ### Attendee shell + profile
 - `src/lib/api/session.ts` — `loadSession()`, the one shared implementation of the documented
@@ -246,16 +274,44 @@ against a Node `fetch` to the same host — they use different trust stores.
 - `src/lib/api/errors.ts` — added `describeApiError`, one shared mapper from the documented error
   envelope to user-facing copy, reused by onboarding and profile instead of a local copy in each.
 
-### Organizer flow
+### Organizer sign-in + host setup (rebuilt 2026-11-10 to `Organizer SignIn/`)
+- Implemented from `eventradr-frontend/Organizer SignIn/` (15 desktop/mobile frames). Because this model
+  cannot read images, every frame's copy, geometry and palette was recovered with the macOS Vision OCR /
+  colour-sampler tooling in `/tmp`; the copy below is verified against the frames, not inferred.
+- `src/app/(organizer-flow)/layout.tsx` — shell-free split-panel layout mirroring `(auth)/layout.tsx`,
+  but using the **new brand mark** `public/signal-mark.png` (an 80×80 `#5B35F5` disc with a lime
+  crescent, white leaf and coral dot — different from the attendee purple-square + white-ring lockup).
+  Card is deliberately fluid (`34rem`/`39rem`) rather than pinned to the design's measured ~437 px, per
+  the standing "responsive across every screen" ruling.
+- `src/app/(organizer-flow)/organizer/sign-in/page.tsx` — the organizer OTP sign-in, structurally
+  mirroring the attendee `(auth)/sign-in`. Copy: "Bring people together" / "Use the same Eventradr
+  account to attend and organize events." → "Check your email" / "Enter the 6-digit code sent to
+  ${email}." Routing: `isNewUser || !user.organizer` → `/organizer/setup`, otherwise `/organizer`. There
+  is **one** account and **one** OTP flow; organizer is a capability, not an account type.
+- `src/app/(organizer-flow)/organizer/setup/page.tsx` — `POST /organizer/profile`, six states:
+  `loading → form → saving → saveError | unconfirmed | checking`. Error mapping: `ORGANIZER_PROFILE_EXISTS`
+  → ready; `ORGANIZER_NAME_TAKEN` / `VALIDATION_ERROR` → back to form with an inline name error; 401 →
+  sign-in; `status >= 500` → `unconfirmed` (the write may have landed, so it offers "Check saved
+  profile", which calls `GET /organizer/profile` and resolves to ready on success or back to the form on
+  the documented `ORGANIZER_PROFILE_REQUIRED`). Buttons are `type="button"` (not a `<form>`) so the
+  primary action can be swapped for a disabled spinner button while in flight. "Start a draft instead"
+  stays disabled on **this** screen because draft creation needs an organizer profile that does not
+  exist yet at this point in the flow — the workspace offers it once setup is done.
+- `src/app/(organizer-flow)/organizer/setup/ready/page.tsx` — the handoff screen ("Your organizer profile
+  is ready" / "Manage events" → `/organizer/events`), mirroring `/onboarding/all-set`.
+- Deleted the original `AppShell`-wrapped `(organizer)/organizer/setup/page.tsx`. Route groups do not add
+  URL segments, so it and the new file both resolved to `/organizer/setup` — a build-breaking collision.
+- Landing-page organizer CTAs now point at `/organizer/sign-in` (footer "Create an event", header
+  "Create an event", the "How it works" section CTA). The header's plain "Sign in" still goes to the
+  attendee `/sign-in`.
+
+### Organizer area (shell)
 - `src/app/(organizer)/layout.tsx` — wraps the organizer area in `AppShell variant="organizer"`. Every
   organizer is also an attendee, so reusing the shell avoids a second, near-identical chrome.
-- `src/app/(organizer)/organizer/setup/page.tsx` — `POST /organizer/profile`. Gated on `user.organizer`:
-  an existing profile short-circuits to an "already set up" state, and the documented
-  `ORGANIZER_PROFILE_EXISTS` race switches to that state too. Name is normalised and validated before
-  sending, with `aria-invalid` / `aria-describedby` and an inline problem message.
 - `src/app/(organizer)/organizer/page.tsx` — organizer home. Gated on having a profile: no
   `user.organizer` (or the documented `ORGANIZER_PROFILE_REQUIRED` 403) routes the user to setup.
-  Links to `/organizer/profile` and shows the profile summary with the avatar or initials.
+  Offers entry cards to **Your events** (`/organizer/events`) and **Public profile**
+  (`/organizer/profile`), and shows the profile summary with the avatar or initials.
 - `src/app/(organizer)/organizer/profile/page.tsx` — edits name and `about`, plus organizer avatar
   upload/removal (client-side type + 5 MB guard). `PATCH /organizer/profile` sends only the dirty fields
   and uses `about: null` to clear, per the documented contract.
@@ -265,24 +321,97 @@ against a Node `fetch` to the same host — they use different trust stores.
 - `src/lib/api/errors.ts` — organizer cases added to `describeApiError`: `ORGANIZER_NAME_TAKEN`,
   `ORGANIZER_PROFILE_EXISTS`, `ORGANIZER_PROFILE_REQUIRED`, `IMAGE_INVALID`, `PAYLOAD_TOO_LARGE`.
 
+### Organizer events workspace (built 2026-11-10 to `Organizer Events Flow/`)
+- Implemented from `eventradr-frontend/Organizer Events Flow/` (69 desktop/mobile frames). Because this
+  model cannot read images, each frame's copy, geometry and palette was recovered with the macOS Vision
+  OCR / colour-sampler tooling in `/tmp`. Backed screens were built; unbacked ones render disabled.
+- `src/app/(organizer-workspace)/layout.tsx` — a **third**, shell-free route group carrying the design's
+  "Organizer workspace" top bar: `signal-mark.png` + `eventradr` wordmark (linking to `/organizer/events`),
+  a divider, and an uppercase `Organizer workspace` label over `#FAFAFC`. Distinct from both `AppShell`
+  (the sidebar chrome) and `(organizer-flow)` (the split-panel auth chrome).
+- `src/app/(organizer-workspace)/organizer/events/page.tsx` — the **hub**: lists the organizer's drafts
+  (`GET /organizer/events?tab=drafts&page=N`) with pagination ("Load more drafts"), a per-draft card
+  (`Draft • Not public`, title or "Untitled draft", date range, place, category, updated-at, missing-field
+  summary), `Continue editing` → `/organizer/events/{id}`, `Delete draft` (confirm dialog →
+  `DELETE /organizer/events/{id}`), and `Create an event` → `/organizer/events/new`. Guards: 401 →
+  `/organizer/sign-in`; `ORGANIZER_PROFILE_REQUIRED` or no `user.organizer` → a "set up your profile first"
+  card → `/organizer/setup`; other failures → a "Try again" card.
+- `src/app/(organizer-workspace)/organizer/events/new/page.tsx` — resolves the organizer name from the
+  session, then renders `<EventForm mode="create" />`. No profile → `/organizer/setup`.
+- `src/app/(organizer-workspace)/organizer/events/[id]/page.tsx` — edit screen. Resolves the draft with
+  `findEvent(id)` (see below) and renders `<EventForm mode="edit" />`. Handles `missing` (unknown draft →
+  "We couldn't find that draft") and `error` (→ "Try again") states.
+- `src/app/(organizer-workspace)/organizer/events/[id]/saved/page.tsx` — the **"Draft saved"**
+  confirmation (Organizer 9 / Organizer 2 layouts): "Your event is saved, but it isn't public.", the
+  draft title, a progress line derived from `event.missing`, the `#EEE9F5` "Submit for review once the
+  required details are complete." note, `Continue editing` (primary) and `Manage events` (→
+  `/organizer/events`). The progress line only names fields the design shows and treats `cover` /
+  `admission` as non-blocking, since neither has an API route yet.
+- `src/lib/api/events.ts` — appended **`findEvent(id)`**. The collection documents **no**
+  `GET /organizer/events/{id}`, so a single event is read out of the drafts list, walking pages while the
+  list reports a next one (guarded against a bad `hasNext`). Returns `null` when the id is not among the
+  organizer's drafts.
+- Wired the previously-inactive entry points: `setup/ready` "Manage events" → `/organizer/events`; the
+  organizer home gained a **"Your events"** `EntryCard` → `/organizer/events`; the `setup` "Start a draft
+  instead" comment was corrected (it stays disabled because draft creation needs a profile that screen has
+  not created yet).
+- Unbacked sections (cover image upload, admission, ticket types/tiers, max tickets per order, refund
+  policy, payout bank details, submit-for-review, under-review, approved/live, ticket validation,
+  duplication, "View listing status") are rendered **disabled** behind `UnbackedNote` pills, not invented.
+
+### Brand mark unified (2026-11-11)
+- The wordmark everywhere now uses the **`signal-mark.png`** icon (the `#5B35F5` disc with lime crescent,
+  white leaf and coral dot) that the organizer surfaces already used. Replaced the older inline
+  purple-square + white-ring lockup in `AppShell.tsx` (attendee **and** organizer shells), the landing
+  page header and footer (`src/app/page.tsx`), `(auth)/layout.tsx` and `onboarding/layout.tsx`. Rendered
+  as `next/image` at 32 px. `(organizer-flow)` and `(organizer-workspace)` were already on the new mark.
+- **Favicon** switched to the same mark: `src/app/icon.png` (a copy of `signal-mark.png`, 80×80), and the
+  default `src/app/favicon.ico` was removed so it can't take precedence. Next.js now emits
+  `<link rel="icon" href="/icon.png?…" sizes="80x80" type="image/png">`. (`favicon` must be `.ico` in
+  this Next version, so the PNG goes through the `icon` file convention.)
+- Verified: `npx tsc --noEmit`, `npm run lint` and `npm run build` all pass (18 routes).
+
 ### Verification
-- `npx tsc --noEmit` and `npm run lint` pass.
-- Dev server serves `/`, `/dashboard`, `/profile`, `/onboarding`, `/organizer`, `/organizer/setup` and
-  `/organizer/profile` with HTTP 200.
-  These are client-rendered routes, so a 200 confirms they compile and mount — it does **not** confirm
-  the OTP → cookies → `/me` round trip, nor the organizer POST/PATCH round trips.
+- `npx tsc --noEmit`, `npm run lint`, and `npm run build` pass.
+- Browser smoke-checks on the dev server confirm the rebuilt attendee flow routes mount and render the
+  expected primary copy:
+  `/sign-in` ("Let's get you started!"), `/onboarding` (signed-out guard state), and
+  `/onboarding/all-set` ("You're all set").
+- These checks confirm the routes compile and render. They do **not** confirm the OTP -> cookies -> `/me`
+  round trip, because that still needs a real staging account / code.
 - Note: moving routes leaves stale generated types in `.next/types/validator.ts` pointing at the old
   paths, which fails `tsc` until the dev server (or a build) regenerates them. Clear `.next` after a
   route move, then start the server before type-checking.
-- Live staging probes (2026-11-05): `GET /api/v1/organizer/events` → **401 UNAUTHENTICATED** (route is
-  deployed, just undocumented in the spec); `GET /api/v1/locations` → **404 route not found**
-  (documented in Postman but not deployed).
+- Live staging probes (2026-11-05): `GET /api/v1/organizer/events` → **401 UNAUTHENTICATED**;
+  `GET /api/v1/locations` → **404 route not found** (documented in Postman but not deployed).
+  **Correction (2026-11-10):** a `401` under `/organizer` is **not** evidence that a route exists — the
+  `/organizer` prefix runs an auth guard *before* route matching, so any path under it returns 401 while
+  unauthenticated. The `/organizer/events` route is real, but that is established by the Postman contract
+  and by an authenticated round trip, **not** by the 401. Only `404 route not found` (seen on
+  `/api/v1/locations`) distinguishes a missing route.
 - Live staging probes (2026-11-06): `GET /api/v1/admin/me` → **401 UNAUTHENTICATED**
   (`{"error":{"code":"UNAUTHENTICATED","message":"sign in to continue"}}`), so the admin route **is
   deployed** — it is an auth wall, not a missing route, which is the same signal `/organizer/profile`
   gives. `GET /api/v1/admin` also returns 401 (rather than 404), suggesting an auth guard on the whole
   `/admin` prefix. Control: `/api/v1/locations` and a deliberately bogus path both return 404. Only the
   401 is confirmed — the 403 "not an admin" branch and the success payload need a real admin account.
+- Verification (2026-11-10, organizer flow): after clearing `.next` (stale `validator.ts` from the route
+  move), `npx tsc --noEmit`, `npm run lint` and `npm run build` all pass. The production route table
+  lists 12 pages, including `/organizer/sign-in`, `/organizer/setup` and `/organizer/setup/ready`.
+  Lint caught one real defect: a local function named `useAnotherAccount` was read as a React hook
+  (`react-hooks/rules-of-hooks`) — renamed to `switchAccount`.
+- Verification (2026-11-10, organizer events workspace): `npx tsc --noEmit`, `npm run lint` and
+  `npm run build` all pass; the route table now lists **18** pages, including `○ /organizer/events`,
+  `○ /organizer/events/new`, `◐ /organizer/events/[id]` and `◐ /organizer/events/[id]/saved`. All five
+  workspace routes (`/organizer/events`, `/organizer/events/new`, `/organizer/events/[id]`,
+  `/organizer/events/[id]/saved`, `/organizer`) return **200** on the dev server. Two lint/compile
+  defects were caught and fixed: `react-hooks/set-state-in-effect` (a loader that called
+  `setStatus("loading")` synchronously in its effect — split into a loader plus a separate `retry()`),
+  and `CLIENT_HOOK_DYNAMIC` (`useParams()` in a Client Component needs a `<Suspense>` boundary under
+  this project's Cache Components config). Live probes this session: `GET /api/v1/locations` → **404**;
+  `GET /api/v1/categories` → **200** but with **live** IDs (`01a145d2-…`) that differ from the Postman
+  documentation (`01a145c6-…`) — so categories must always be fetched live and never bundled;
+  `GET /api/v1/organizer/events` → 401 (inconclusive, per the prefix-guard correction above).
 
 ---
 
@@ -369,15 +498,60 @@ venue/area/coordinates; online events send `joiningUrl` instead.
 **Optimistic concurrency:** every PATCH must echo the `version` it last read as `expectedVersion`;
 successful writes increment `version`. Send only changed fields; `coordinates: null` unsets the pin.
 
-### Locations — documented in Postman, **not deployed**
+### Public events feed — **does not exist**
+
+Checked 2026-11-10. There is **no unauthenticated way to read events** from this backend:
+
+| Candidate | Result |
+|---|---|
+| `GET /events` | **404 `route not found: GET /api/v1/events`** |
+| `GET /public/events` | **404 `route not found`** |
+| `GET /organizers/{id}/events` | **404 `route not found`** |
+| `GET /organizers/{id}` | Route **exists**, but returns `PublicOrganizer` (`id`, `name`, `about`, `avatar`) only — no events |
+| `GET /organizer/events` | Route **exists**, but `401` unauthenticated, organizer-scoped, and returns **drafts only** |
+
+Every documented event carries `status: "draft"`, no publish route is documented, and `tab=drafts` is the
+only documented `tab`. So the only event data reachable at all is the signed-in organizer's **own
+unpublished drafts**. Nothing exists for an attendee or the landing page to read.
+
+**Route-vs-resource:** the app's router returns `{"error":{"code":"NOT_FOUND","message":"route not found:
+GET /api/v1/x"}}` for a missing route, but `"organizer not found"` for a missing resource. Use that
+wording to distinguish "not deployed" from "not found" — this is what makes the table above conclusive.
+
+### Locations — documented in Postman, **route not deployed**; UI uses a bundled fallback
 | Method | Path | Status |
 |---|---|---|
-| GET | `/locations` | **404 `route not found`** on staging (2026-11-05) |
+| GET | `/locations` | **404 `route not found`** on staging (re-checked 2026-11-10) |
 
 The Postman collection shows `/locations` returning a state → city → area hierarchy, and `areaId` on
-create/update is expected to be one of those area IDs. The route is not live, so `in_person` events
-cannot be given an `areaId` sourced from the API yet. Area IDs are environment-specific — never
-hardcode the Postman example IDs.
+create/update is expected to be one of those area IDs. The documented **area IDs are live-staging IDs**
+(proven by the documented create/update event examples returning those same `area.id` values), unlike the
+category IDs, so the fallback is safe to ship.
+
+`src/lib/api/locations.ts` therefore does: `fetchLocations()` calls `GET /locations`; on a `404` it falls
+back to `LOCATION_FALLBACK`, a bundled verbatim snapshot of the documented Lagos → Lagos → 53 areas.
+`listLocations()` is the single entry point the UI uses, and **switches to live data automatically** the
+moment the route is deployed — no code change needed.
+
+### Endpoints the designs call for but the backend does **not** expose
+Recorded so they can be revisited. None of these has a route today; the UI renders them **disabled** or
+omits them rather than inventing schemas.
+
+| Design need | Backing route | Status |
+|---|---|---|
+| Event cover image upload | — | **No route** (`cover` appears only in `Event.missing`, as a separate resource) |
+| Admission / ticket pricing | — | **No route** (`admission` appears only in `Event.missing`) |
+| Ticket types / tiers | — | **No route** |
+| Max tickets per order | — | **No route** |
+| Refund policy | — | **No route** |
+| Payout / bank details | — | **No route** |
+| Submit event for review | — | **No route** (only `status: "draft"` exists; no publish transition) |
+| Listing status / under-review (`Organizer 4`) | — | **No route** |
+| Approved / live event state | — | **No route** |
+| Ticket validation / check-in, duplicate event | — | **No route** |
+| Single event read (`GET /organizer/events/{id}`) | — | **Not documented** — `findEvent` reads the drafts list instead |
+| Public events feed (landing page) | — | **No route** (see below) |
+| `GET /locations` | `/locations` | **404 on staging** — bundled fallback in use |
 
 ### Admin — authenticated
 | Method | Path | Returns |
@@ -432,10 +606,13 @@ Key implications:
 `/me` → dashboard. On 401: `POST /auth/refresh` once, then retry; on 409 retry the original request.
 
 ### Become an organizer
-Dashboard entry card → `/organizer/setup` → `POST /organizer/profile { name }` → organizer section
-appears. Edit name/about and the organizer avatar at `/organizer/profile` (`PATCH /organizer/profile`,
-`PUT`/`DELETE /uploads/organizer-avatar`). `/organizer` is the organizer home; it sends users to setup
-when no profile exists.
+Landing-page "Create an event" CTA → `/organizer/sign-in` → `POST /auth/otp` → `POST /auth/otp/verify`
+→ `isNewUser || !user.organizer` ? `/organizer/setup` : `/organizer`. Setup calls
+`POST /organizer/profile { name }` and lands on `/organizer/setup/ready`. Edit name/about and the
+organizer avatar at `/organizer/profile` (`PATCH /organizer/profile`, `PUT`/`DELETE
+/uploads/organizer-avatar`). `/organizer` is the organizer home; it sends users to setup when no profile
+exists. There is **one** account and **one** OTP flow — the organizer sign-in is the same endpoint as the
+attendee one, just a different entry screen; an organizer is also an attendee.
 
 ---
 
@@ -444,9 +621,13 @@ when no profile exists.
 1. **Events ARE available — earlier note retracted.** A previous version of this file said no event
    endpoints existed and that all event UI was BLOCKED. That was **wrong**: it came from reading only
    the OpenAPI spec, which is stale. The Postman "Event" folder documents a full `/organizer/events`
-   draft lifecycle, and live staging confirms the routes are deployed (`GET /organizer/events` → 401, not
-   404). The service layer is now built. What is **still** blocked is `areaId` selection for `in_person`
-   events, because `GET /locations` 404s on staging despite being documented (§4).
+   draft lifecycle. (The old claim that `GET /organizer/events` → 401 "confirms the route is deployed"
+   was **also** wrong — the `/organizer` prefix auth guard runs before route matching, so that 401 is
+   inconclusive; see the verification correction in §3.) The service layer **and** the full workspace UI
+   are now built. The former `areaId` blocker is **resolved**: `listLocations()` falls back to a bundled
+   snapshot of the documented areas while `GET /locations` 404s, and switches to live automatically
+   (§4). What remains unbacked is everything in the "not exposed" table in §4 — cover, admission, ticket
+   tiers, payout, and the publish/review lifecycle — none of which has a route.
 2. **Design source is connected but unreadable.** The Figma AI Bridge MCP is installed and working
    (requires `NODE_EXTRA_CA_CERTS` — see the Figma design map). However the Figma REST API
    `files/nodes` endpoint is rate-limited on the starter plan (~4.6 days), and the current model
@@ -459,12 +640,22 @@ when no profile exists.
    verification against live staging is required** — neither document is globally authoritative.
 4. **End-to-end OTP not yet confirmed** with a real staging account. `eventradr-setup.md` §7 makes this
    explicit: do not claim "authentication working" until the browser OTP → cookies → `/me` 200 test passes.
-5. **Design-system inconsistency (narrowing).** The landing page, the app shell, `/onboarding`,
-   `/dashboard`, `/profile` and the organizer screens all use the project palette (Cream, Ink, Mint,
-   Lime, Purple, Coral) and Bricolage/Manrope. **Sign-in is the last page still on generic zinc/black
-   Tailwind styling** and is the remaining alignment task.
+5. **Design-system inconsistency (resolved for attendees).** The landing page, the app shell,
+   `/sign-in`, `/onboarding`, `/onboarding/all-set`, `/dashboard` and `/profile` all use the project
+   palette (Cream, Ink, Mint, Lime, Purple, Coral) and Bricolage/Manrope. Sign-in was the last page
+   left on generic zinc/black styling; **the attendee sign-in rebuild removed that** (2026-11-10). The
+   organizer screens are on the design system too, but await their Figma fidelity pass.
 6. **There is no `role` field.** Any "user type" switch in the UI must be derived from `user.organizer`
    and `/admin/me`, not from a stored role.
+7. **There is no public events feed.** Re-verified 2026-11-10: the Postman collection documents only
+   organizer-scoped event routes (`/organizer/events`), and `/api/v1/public/events` returns
+   `404 route not found`. The landing page therefore stays on mock data until a public feed is
+   deployed — do not invent one.
+8. **The API's rate limiter is global.** Any path returns `429 rate limited`, including paths that do
+   not exist, so a `429` says **nothing** about whether a route is deployed. Probe with a bogus control
+   path (e.g. `/api/v1/definitely-not-a-real-route-xyz`) in the same batch; only `404` vs a
+   contract-shaped `401`/`400` is evidence. `/api/v1/locations` → `404` is therefore conclusive
+   (re-checked 2026-11-10), whereas the `429`s seen for `/api/v1/events` and `/api/v1/admin/me` are not.
 
 ---
 
@@ -472,34 +663,68 @@ when no profile exists.
 
 Ordered, smallest-useful-first. Nothing here should be built against invented schemas.
 
-- [ ] Confirm end-to-end OTP against staging with a real account (cookies + `/me` 200).
-- [ ] Align sign-in with the landing-page design system (dashboard is now aligned — see blocker 5).
+**Sequencing (revised 2026-11-10): the organizer sign-in + host-setup flow comes first.** The earlier
+attendee-first order was reversed by the user — finish setting up the organizer side before returning to
+the remaining attendee screens, which will still be supplied in batches. Admin stays deferred.
+
+### Attendee — current focus
+
+- [x] Rebuild the attendee sign-in flow to match the supplied attendee design folder.
+- [x] Recover the attendee sign-in/onboarding design from the user-supplied local flow folder
+      (`eventradr-frontend/Attendee Sign In/`) and use it as the implementation source.
+- [x] Rebuild onboarding as the attendee **interests-only** flow, gated on `isNewUser`.
+- [x] Add the attendee "You're all set" screen and wire the new-user routing.
+- [x] Create the `(attendee)` route group and the shared `AppShell` (see §9, decision 5).
+- [x] Build profile settings (name, avatar upload/remove, interests).
+- [ ] Confirm end-to-end OTP against staging with a real account (cookies + `/me` 200). The dev proxy
+      is verified working; only the emailed-code round trip is outstanding, and it needs a mailbox.
+- [ ] Implement the remaining attendee screens as the user supplies them, batch by batch.
+- [ ] Fidelity pass on the attendee screens against their Figma frames once readable.
+- [ ] Replace mock landing-page event data once a **public** events feed exists — **verified
+      2026-11-10 that it does not** (§7, item 7). Do not invent this endpoint.
+
+### API layer
+
+- [x] Extend `src/lib/api/types.ts` with `UpdateProfileBody` and `SetInterestsBody`; add
+      `src/lib/api/profile.ts` and `src/lib/api/admin.ts`.
+- [x] Move `getCurrentUser` from `auth.ts` to `profile.ts` and update the dashboard import.
 - [x] Extend `src/lib/api/types.ts` with `PublicOrganizer`, `Organizer`, `CreateOrganizerBody`,
       `UpdateOrganizerBody`.
 - [x] Add `src/lib/api/organizer.ts`.
-- [x] Extend `types.ts` with `UpdateProfileBody` and `SetInterestsBody`; add `src/lib/api/profile.ts`
-      and `src/lib/api/admin.ts`.
-- [x] Move `getCurrentUser` from `auth.ts` to `profile.ts` and update the dashboard import.
-- [x] Extend `types.ts` with the event DTOs and add `src/lib/api/events.ts` (create / list / update / delete).
-- [ ] **Obtain the attendee designs** (Figma is rate-limited — see the Figma design map).
-- [x] Build onboarding (name + interests) — gated on `isNewUser`, and sign-in now routes on it.
-      Styled from the design system; **expect a restyle pass** once Figma is readable.
-- [ ] Restyle `/onboarding` against its Figma frame (`Attendee / Sign in and onboarding`, `4041:125498`).
-- [x] Create the `(attendee)` route group and the shared `AppShell` (see §9, decision 5).
-- [x] Create the `(organizer)` group, reusing `AppShell` via its `variant` prop. Still to decide: whether
-      `(admin)` reuses `AppShell` or needs its own chrome.
-- [ ] Restyle the shell, `/dashboard`, `/profile` and the organizer screens against their Figma frames
-      once readable.
-- [x] Build profile settings (name, avatar upload/remove, interests).
+- [x] Extend `types.ts` with the event DTOs and add `src/lib/api/events.ts`
+      (create / list / update / delete / find). The UI is now built on top of it (§3).
+- [x] Add the location DTOs and `src/lib/api/locations.ts` with `listLocations()` and the bundled
+      `LOCATION_FALLBACK` snapshot (§4).
+
+### Organizer — current focus
+
+- [x] Create the `(organizer)` group, reusing `AppShell` via its `variant` prop.
 - [x] Build organizer setup + organizer profile management (`/organizer/setup`, `/organizer`,
       `/organizer/profile`). Design-system styling; **expect a restyle pass** once Figma is readable.
+- [x] Create the shell-free `(organizer-flow)` group and rebuild the organizer sign-in (`/organizer/sign-in`),
+      host setup (`/organizer/setup`) and handoff (`/organizer/setup/ready`) to the `Organizer SignIn/`
+      design. Wire the landing-page organizer CTAs to `/organizer/sign-in`.
+- [ ] Confirm end-to-end OTP against staging with a real organizer account (cookies + `/me` 200) and
+      walk the sign-in → setup → ready path. Needs a mailbox.
 - [ ] Restyle the organizer screens against `Organizer / Sign in and organizer setup` (`571:11519`) and
       `Organizer / Edit public organizer profile` (`2653:388029`).
-- [ ] Build organizer event management UI (draft list → create → edit) on top of `src/lib/api/events.ts`.
-- [ ] Resolve `areaId` sourcing for `in_person` events — `GET /locations` is 404 on staging (§4).
+- [ ] Restyle the shell, `/dashboard` and `/profile` against their Figma frames once readable.
+- [x] Build organizer event management UI (draft list → create → edit) on top of `src/lib/api/events.ts`.
+      Built as the shell-free `(organizer-workspace)` group: `/organizer/events` (hub), `/events/new`
+      (create), `/events/[id]` (edit) and `/events/[id]/saved` ("Draft saved"), with delete-draft, the
+      live "Before you submit" preview, and the unsaved-changes guard. The setup screen's "Start a draft
+      instead" is still disabled on that screen only, because draft creation needs a profile that does
+      not exist yet there.
+- [x] Resolve `areaId` sourcing for `in_person` events — `listLocations()` uses the bundled fallback
+      while `GET /locations` 404s and switches to live automatically (§4).
+- [ ] Implement the unbacked design screens (cover image, admission, ticket tiers, payout, submit-for-
+      review, under-review, approved/live) **once their routes exist** — see the §4 "not exposed" table.
+      Do not build them against invented schemas.
+
+### Admin — deferred
+
+- [ ] Decide whether `(admin)` reuses `AppShell` or needs its own chrome.
 - [ ] Build the admin entry point, gated on `/admin/me`.
-- [ ] Replace mock landing-page event data once a **public** events endpoint exists. (The built
-      `/organizer/events` routes are organizer-scoped and return drafts — they are not a public feed.)
 
 ---
 
@@ -510,11 +735,11 @@ Ordered, smallest-useful-first. Nothing here should be built against invented sc
    is rate-limited on the starter plan.
 2. **Route/IA shape** — **separate route groups per user type** (e.g. `(attendee)`, `(organizer)`,
    `(admin)`), each with its own shell, rather than one role-aware dashboard.
-3. **Sequence** — **attendee first**, then organizer, then admin. The attendee surface is the only one
-   where the designs, the endpoints, and the role model are all complete. Organizer was considered first
-   but deferred while the event endpoints were believed missing. That premise is now corrected —
-   `/organizer/events` exists and the service layer is built — so organizer event management is
-   unblocked at the API level, though its designs are still unreadable.
+3. **Sequence — revised 2026-11-10: organizer sign-in + host setup first.** The user reversed the
+   earlier attendee-first order: finish the organizer set-up side, then return to the remaining attendee
+   screens as they are supplied. Admin stays last. (Background: organizer was originally considered first
+   but deferred while the event endpoints were believed missing; that premise is corrected —
+   `/organizer/events` exists and the service layer is built.)
 4. **Build on the design system now, restyle against Figma later** (2026-11-05). Because the Figma
    `files/nodes` limit is still counting down (`Retry after 100061 seconds`) and this model cannot read
    the exported PNGs, the attendee screens are being built from the project's own tokens and typography
@@ -531,17 +756,48 @@ Ordered, smallest-useful-first. Nothing here should be built against invented sc
    src/app/(organizer)/layout       → AppShell variant="organizer"
    src/app/(organizer)/organizer/
      ├─ page                       → organizer home (gated on a profile)
-     ├─ setup/page                 → create the organizer profile
      └─ profile/page               → edit name/about + organizer avatar
+   src/app/(organizer-flow)/layout  → shell-free split panel (organizer sign-in + host setup)
+   src/app/(organizer-flow)/organizer/
+     ├─ sign-in/page               → organizer OTP sign-in
+     ├─ setup/page                 → create the organizer profile
+     └─ setup/ready/page           → handoff ("Your organizer profile is ready")
+   src/app/(organizer-workspace)/layout → shell-free "Organizer workspace" top bar
+   src/app/(organizer-workspace)/organizer/events/
+     ├─ page                       → events hub (drafts list, create, delete)
+     ├─ new/page                   → create a draft
+     └─ [id]/
+        ├─ page                    → edit a draft
+        └─ saved/page              → "Draft saved" confirmation
    src/app/onboarding/              → standalone focused flow (no shell)
    ```
 
-   Route groups do not affect URLs, so `/dashboard`, `/profile`, `/organizer`, `/organizer/setup` and
-   `/organizer/profile` are plain paths. The organizer area deliberately **nests under `/organizer`**
-   rather than living at the group root, so the URLs say which capability they belong to. The shell
-   links only routes that exist today; "Discover" points at the landing page (`/`). `AppShell` is
-   presentational, so each page owns its session and no extra `/me` request is made. One shell serves
-   both areas via the `variant` prop, since an organizer is also an attendee.
+   Route groups do not affect URLs, so `/dashboard`, `/profile`, `/organizer`, `/organizer/sign-in`,
+   `/organizer/setup`, `/organizer/setup/ready`, `/organizer/profile`, `/organizer/events`,
+   `/organizer/events/new`, `/organizer/events/{id}` and `/organizer/events/{id}/saved` are plain paths.
+   The organizer area deliberately **nests under `/organizer`** rather than living at the group root, so
+   the URLs say which capability they belong to. The shell links only routes that exist today; "Discover"
+   points at the landing page (`/`). `AppShell` is presentational, so each page owns its session and no
+   extra `/me` request is made. One shell serves both areas via the `variant` prop, since an organizer is
+   also an attendee. **Because route groups do not add segments, no two groups may define the same final
+   path** — `/organizer/setup` lives only in `(organizer-flow)`; a second definition under `(organizer)`
+   will fail the build.
+6. **Organizer events live in their own shell-free workspace, `(organizer-workspace)`** (2026-11-10).
+   The `Organizer Events Flow/` design carries a distinct top bar ("Organizer workspace"), not the
+   `AppShell` sidebar, so a third route group was added rather than stretching `AppShell`. `/organizer`
+   (home) and `/organizer/profile` stay in the sidebar `(organizer)` shell as before.
+7. **No single-event GET — read the draft out of the list** (2026-11-10). The collection documents no
+   `GET /organizer/events/{id}`, so `findEvent(id)` walks `GET /organizer/events?tab=drafts&page=N`
+   until it finds the id (returning `null` if absent). This avoids inventing a route; if a real
+   single-event endpoint appears, swap `findEvent` for it.
+8. **`areaId` via a bundled fallback, categories always live** (2026-11-10). `GET /locations` 404s, so
+   the UI falls back to a bundled snapshot of the documented areas and switches to live automatically
+   when the route lands. Categories are the opposite: the live IDs already differ from the documented
+   ones, so `GET /categories` is **always** called live and never bundled.
+9. **Unbacked design sections render disabled, not mocked** (2026-11-10). Every screen section with no
+   backing route (cover, admission, ticket tiers, payout, submit-for-review, under-review) is rendered
+   behind a disabled `UnbackedNote` pill so the UI matches the design without inventing behaviour.
+   The list is in the §4 "not exposed" table for later revisiting.
 
 ## Still open
 
@@ -556,12 +812,15 @@ Ordered, smallest-useful-first. Nothing here should be built against invented sc
 - **Shell identity.** `AppShell` is presentational today, so each page fetches `/me` itself. If the shell
   should show the signed-in user's avatar/name, an auth provider in the `(attendee)` layout would avoid a
   duplicate request per page.
-- **Backend:** `GET /locations` is documented but 404s on staging. How should an `in_person` event's
-  `areaId` be sourced meanwhile? Blocks complete offline event authoring.
+- **Backend:** `GET /locations` is documented but 404s on staging. **Resolved for now** — the UI uses a
+  bundled snapshot of the documented areas (`listLocations()`) and switches to live automatically once
+  the route is deployed (§4).
 - **Backend:** is there a **public** events feed for the landing page, or is `/organizer/events`
   (drafts, organizer-scoped) the only event surface?
 - **Backend:** confirm whether the OpenAPI `User` schema (`organizer`, `interests` required) or the older
   Postman sample is current.
+- **Backend:** the documented category IDs are **stale** (live differ) — confirm the design's category
+  examples are not relied on anywhere. The UI fetches categories live, so this is informational only.
 
 ---
 

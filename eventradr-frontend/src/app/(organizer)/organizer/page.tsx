@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowRight,
+  faCalendarPlus,
   faIdBadge,
   type IconDefinition,
 } from "@fortawesome/free-solid-svg-icons";
@@ -168,6 +169,12 @@ export default function OrganizerHomePage() {
         {status === "ready" && organizer && (
           <>
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <EntryCard
+                href="/organizer/events"
+                title="Your events"
+                description="Create a draft and manage what you're working on."
+                icon={faCalendarPlus}
+              />
               <EntryCard
                 href="/organizer/profile"
                 title="Public profile"

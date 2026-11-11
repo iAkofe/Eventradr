@@ -62,6 +62,8 @@ export function describeApiError(error: unknown): string {
       return "That image couldn't be used. Choose a PNG, JPG or WebP.";
     case "PAYLOAD_TOO_LARGE":
       return "That file is over the 5 MB limit. Choose a smaller one.";
+    case "NOT_FOUND":
+      return "We couldn't find that. It may have been removed.";
     default:
       return payload.message || "Something went wrong. Please try again.";
   }

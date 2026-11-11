@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRef, type PointerEvent, type ReactNode } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -138,7 +139,7 @@ const footerColumns = [
   {
     title: "Organizers",
     links: [
-      { label: "Create an event", href: "/sign-in" },
+      { label: "Create an event", href: "/organizer/sign-in" },
       { label: "How it works", href: "#how-it-works" },
       { label: "Support", href: "#" },
     ],
@@ -358,9 +359,15 @@ export default function Home() {
               href="/"
               className="flex items-center gap-2.5 font-display text-2xl font-bold tracking-tight text-ink"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple">
-                <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white" />
-              </div>
+              <Image
+                src="/signal-mark.png"
+                alt=""
+                width={32}
+                height={32}
+                priority
+                aria-hidden="true"
+                className="size-8 shrink-0"
+              />
               eventradr
             </Link>
           </motion.div>
@@ -396,7 +403,7 @@ export default function Home() {
             <Magnetic className="inline-block">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Link
-                  href="/sign-in"
+                  href="/organizer/sign-in"
                   className="inline-flex items-center gap-2 rounded-full bg-purple px-5 py-2.5 text-sm font-bold text-white transition hover:bg-purple/90"
                 >
                   Create an event
@@ -1004,7 +1011,7 @@ export default function Home() {
                 className="mt-10"
               >
                 <Link
-                  href="/sign-in"
+                  href="/organizer/sign-in"
                   className="inline-flex items-center gap-4 rounded-full bg-white px-8 py-4 text-sm font-bold text-ink shadow-xl transition hover:bg-cream"
                 >
                   Create an event
@@ -1067,9 +1074,14 @@ export default function Home() {
                 href="/"
                 className="flex items-center gap-2.5 font-display text-2xl font-bold tracking-tight text-white"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple">
-                  <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white" />
-                </div>
+                <Image
+                  src="/signal-mark.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  aria-hidden="true"
+                  className="size-8 shrink-0"
+                />
                 eventradr
               </Link>
               <p className="mt-6 max-w-xs text-sm font-medium text-white/40">

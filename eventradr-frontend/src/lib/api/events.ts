@@ -54,3 +54,28 @@ export function deleteEvent(id: string) {
     method: "DELETE",
   });
 }
+
+/**
+ * Resolve a single event for the edit and "draft saved" screens.
+ *
+ * The collection documents no GET /organizer/events/{id}, so the event is read
+ * out of the drafts list, walking pages while the list reports a next one.
+ * Returns null when the id is not among the organizer's drafts.
+ */
+export async function findEvent(id: string): Promise<Event | null> {
+  let page = 1;
+  // Drafts are few and each request is page-bounded; the guard stops a bad
+  // `hasNext` from looping forever.
+  for (let guard = 0; guard < 50; guard += 1) {
+    const response = await listEvents({ tab: "drafts", page });
+    const match = response.data.items.find((item) => item.id === id);
+    if (match) {
+      return match;
+    }
+    if (!response.data.pagination.hasNext) {
+      return null;
+    }
+    page += 1;
+  }
+  return null;
+}

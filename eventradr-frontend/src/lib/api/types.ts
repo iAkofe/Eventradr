@@ -256,3 +256,27 @@ export interface EventList {
   items: Event[];
   pagination: Pagination;
 }
+
+// --- GET /api/v1/locations ---
+// State -> city -> area tree, from the Postman "Locations" folder. An event
+// references an area by `areaId`; the response echoes the full area plus its
+// city and state on `Event.area`.
+export interface LocationArea {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface LocationCity {
+  id: string;
+  slug: string;
+  name: string;
+  areas: LocationArea[];
+}
+
+export interface LocationState {
+  id: string;
+  slug: string;
+  name: string;
+  cities: LocationCity[];
+}

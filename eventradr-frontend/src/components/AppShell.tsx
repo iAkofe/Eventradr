@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -93,9 +94,15 @@ export function AppShell({
             href="/"
             className="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight text-ink"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple">
-              <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white" />
-            </span>
+            <Image
+              src="/signal-mark.png"
+              alt=""
+              width={32}
+              height={32}
+              priority
+              aria-hidden="true"
+              className="size-8 shrink-0"
+            />
             eventradr
           </Link>
 
